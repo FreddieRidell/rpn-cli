@@ -1,68 +1,116 @@
-use std::fmt;
+extern crate termion;
+
 use std::fmt::Display;
-use std::io::{self, BufRead};
-use std::slice::Iter;
+use std::fmt;
+use std::io::{stdin, stdout, Write};
+use termion::event::Key;
+use termion::input::TermRead;
+use termion::raw::IntoRawMode;
 
-mod token;
-
-pub struct Stack {
-    input: Vec<token::Token>,
-    working: Vec<token::Token>,
+struct RPN {
+    stack: Vec<f64>,
+    input_buffer: String,
 }
 
-impl Stack {
-    fn new() -> Stack {
-        Stack {
-            input: Vec::new(),
-            working: Vec::new(),
+impl RPN {
+    pub fn new() -> RPN {
+        RPN {
+            stack: Vec::<f64>::new(),
+            input_buffer: String::new()
         }
     }
 
-    fn input_stack(&self) -> impl Iterator<Item = &token::Token> {
-        self.input.iter()
+    pub fn add(&mut self) -> Result<&mut Self, &str> {
+        Ok(self)
     }
 
-    fn working_stack(&self) -> impl Iterator<Item = &token::Token> {
-        self.working.iter()
+    pub fn sub(&mut self) -> Result<&mut Self, &str> {
+        Ok(self)
     }
 
-    fn input(&mut self, val: token::Token) -> &mut Self {
-        self.input.push(val);
+    pub fn mul(&mut self) -> Result<&mut Self, &str> {
+        Ok(self)
+    }
+
+    pub fn div(&mut self) -> Result<&mut Self, &str> {
+        Ok(self) 
+    }
+
+    pub fn pow(&mut self) -> Result<&mut Self, &str> {
+        Ok(self) 
+    }
+
+    pub fn sqrt(&mut self) -> Result<&mut Self, &str> {
+        Ok(self) 
+    }
+
+    pub fn resp(&mut self) -> Result<&mut Self, &str> {
+        Ok(self) 
+    }
+
+    pub fn parse_buffer(&mut self) -> Result<&mut Self, &str> {
+        match self.input_buffer.as_str() {
+            "+" => self.add(),
+            _ => Err("Can not parse buffer")
+        }
+    }
+
+    pub fn push_buffer(&mut self, c: char) -> &mut Self {
+        self.input_buffer.push(c);
 
         self
     }
-}
 
-impl Display for Stack {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    pub fn pop_buffer(&mut self) -> &mut Self {
+        self.input_buffer.pop();
 
-        for ( i, token ) in self.input_stack().enumerate() {
-            let stack_label_width = ((self.input.capacity() as f64).log10()) + 1.0;
+        self
+    }
 
-            write!(f, "{0:01$}| {2}\n", i, stack_label_width as usize, token);
-        };
-
-        write!(f, "" )
+    fn stack_indent_width(& self) -> usize {
+        self.stack.iter().fold(0, |width, num| {
+            let this_width = num.log10() as usize;
+            if (this_width > width) {
+                this_width
+            } else {
+                width
+            }
+        })
     }
 }
+
+impl Display for RPN {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({})", self.input_buffer)
+    }
+}
+
 
 fn main() {
-    let stdin = io::stdin();
+    let mut stack = RPN::new();
 
-    let mut stack = Stack::new();
+    let stdin = stdin();
+    let mut stdout = stdout().().unwrap();
 
-    for line in stdin.lock().lines() {
-        for word in line.unwrap().split(" ") {
-            match token::Token::from_string(word) {
-                Ok(token) => {
-                    stack.input(token);
-                }
-                Err(msg) => {
-                    println!("{}", msg);
-                }
-            }
+    for c in stdin.keys() {
 
-            print!("{}", stack);
+        // Print the key we type...
+        match c.unwrap() {
+            // Exit.
+            Key::Char('q') => break,
+            Key::Backspace => { stack.pop_buffer(); },
+            Key::Char('\n') => { stack.parse_buffer().unwrap(); },
+            Key::Char(c) => { stack.push_buffer(c); }
+
+            _ => println!("Other"),
         }
+
+        write!(stdout, "{}\n", stack);
+
+        // Flush again.
+        stdout.flush().unwrap();
     }
+
+    //// Show the cursor again before we exit.
+    //write!(stdout, "{}", termion::cursor::Show).unwrap();
 }
